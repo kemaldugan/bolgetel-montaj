@@ -754,6 +754,10 @@
                 document.getElementById('userAvatar').style.background = this.currentUser.color;
             },
 
+            openWorkOrderModal() {
+                this.openModal('workOrderModal');
+            },
+
             openModal(id) {
                 document.getElementById(id).style.display = 'flex';
                 document.body.style.overflow = 'hidden';
