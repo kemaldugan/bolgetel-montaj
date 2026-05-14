@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Bölgetel Montaj</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set, push, onValue, remove, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD_gW9dnO3XudfO0S-GZez-HM9pxfOD7QI",
+            authDomain: "bolgetel-trio-crm.firebaseapp.com",
+            databaseURL: "https://bolgetel-trio-crm-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "bolgetel-trio-crm",
+            storageBucket: "bolgetel-trio-crm.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abc123"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getDatabase(app);
+        window.dbRef = ref;
+        window.dbSet = set;
+        window.dbPush = push;
+        window.dbOnValue = onValue;
+        window.dbRemove = remove;
+        window.dbUpdate = update;
+        window.firebaseReady = true;
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            overscroll-behavior: none;
+            touch-action: pan-y;
+        }
+        
+        /* Mobile optimized card */
+        .work-card {
+            cursor: pointer;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .work-card:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+        
+        .work-card.dragging {
+            opacity: 0.6;
+            transform: scale(1.05);
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);
+        }
+        
+        .day-slot {
+            min-height: 120px;
+            touch-action: none;
+        }
+        
+        .day-slot.drag-over {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
+            border: 3px dashed #3b82f6 !important;
+        }
+        
+        /* Modal animations */
+        .modal-overlay {
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        .modal-content {
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        /* Status colors */
+        .status-beklemede { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; }
+        .status-tamamlandi { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border-left: 4px solid #10b981; }
+        .status-iptal { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-left: 4px solid #ef4444; }
+        
+        /* Touch-friendly buttons */
+        .btn-touch {
+            min-height: 48px;
+            min-width: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Sticky header */
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Bottom action bar */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            padding: 12px 16px;
+            box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.1);
+            z-index: 50;
+        }
+        
+        /* Safe area for notch */
+        @supports (padding: max(0px)) {
+            .bottom-bar {
+                padding-bottom: max(12px, env(safe-area-inset-bottom));
+            }
+        }
+        
+        /* Compact calendar for mobile */
+        .day-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+        
+        .day-today {
+            background: #3b82f6;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 pb-20">
+    <div id="app">
+        <!-- Mobile Header -->
+        <div class="sticky-header bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg">
+            <div class="px-4 py-4">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg" id="userAvatar" style="background: rgba(255,255,255,0.2);">
+                            K
+                        </div>
+                        <div>
+                            <div class="font-bold text-sm" id="currentUserName">Kemal</div>
+                            <div class="text-xs text-orange-100" id="currentUserRole">Satış</div>
+                        </div>
+                    </div>
+                    <button onclick="app.toggleUserMenu()" class="btn-touch rounded-lg hover:bg-white/10">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Stats - Compact -->
+                <div class="grid grid-cols-4 gap-2 text-center">
+                    <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+                        <div class="text-2xl font-bold" id="monthlyCount">0</div>
+                        <div class="text-xs">Bu Ay</div>
+                    </div>
+                    <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+                        <div class="text-2xl font-bold" id="pendingCount">0</div>
+                        <div class="text-xs">Bekleyen</div>
+                    </div>
+                    <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+                        <div class="text-2xl font-bold" id="completedCount">0</div>
+                        <div class="text-xs">Biten</div>
+                    </div>
+                    <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+                        <div class="text-2xl font-bold" id="totalDevices">0</div>
+                        <div class="text-xs">Cihaz</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Month Navigation -->
+            <div class="flex items-center justify-between px-4 py-3 bg-black/10">
+                <button onclick="app.prevMonth()" class="btn-touch rounded-lg hover:bg-white/10">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div class="text-center">
+                    <div class="text-lg font-bold" id="currentMonth">Mayıs 2026</div>
+                    <button onclick="app.goToToday()" class="text-xs bg-white/20 px-3 py-1 rounded-full mt-1">Bugün</button>
+                </div>
+                <button onclick="app.nextMonth()" class="btn-touch rounded-lg hover:bg-white/10">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Calendar Grid - Mobile Optimized -->
+        <div class="px-2 py-2">
+            <!-- Day headers -->
+            <div class="grid grid-cols-7 gap-1 mb-2">
+                <div class="text-center text-xs font-semibold text-gray-600 py-2">Pzt</div>
+                <div class="text-center text-xs font-semibold text-gray-600 py-2">Sal</div>
+                <div class="text-center text-xs font-semibold text-gray-600 py-2">Çar</div>
+                <div class="text-center text-xs font-semibold text-gray-600 py-2">Per</div>
+                <div class="text-center text-xs font-semibold text-gray-600 py-2">Cum</div>
+                <div class="text-center text-xs font-semibold text-blue-600 py-2">Cmt</div>
+                <div class="text-center text-xs font-semibold text-red-600 py-2">Paz</div>
+            </div>
+            
+            <!-- Calendar days -->
+            <div id="calendar" class="grid grid-cols-7 gap-1"></div>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="bottom-bar">
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="app.exportToExcel()" class="btn-touch bg-green-600 text-white rounded-xl font-semibold shadow-lg active:scale-95 transition-transform">
+                    📥 Excel
+                </button>
+                <button onclick="app.openWorkOrderModal()" class="btn-touch bg-orange-600 text-white rounded-xl font-semibold shadow-lg active:scale-95 transition-transform">
+                    ➕ Yeni İş
+                </button>
+            </div>
+        </div>
+
+        <!-- User Menu Modal -->
+        <div id="userMenuModal" style="display: none;" class="modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end" onclick="if(event.target.id==='userMenuModal') app.closeModal('userMenuModal')">
+            <div class="modal-content bg-white rounded-t-3xl w-full max-h-[80vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center">
+                    <h3 class="text-lg font-bold">Kullanıcı Seç</h3>
+                    <button onclick="app.closeModal('userMenuModal')" class="btn-touch">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 space-y-2" id="userMenuList"></div>
+            </div>
+        </div>
+
+        <!-- Work Order Form Modal -->
+        <div id="workOrderModal" style="display: none;" class="modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end" onclick="if(event.target.id==='workOrderModal') app.closeModal('workOrderModal')">
+            <div class="modal-content bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center z-10">
+                    <h3 class="text-lg font-bold">🔧 Yeni Montaj</h3>
+                    <button onclick="app.closeModal('workOrderModal')" class="btn-touch">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <form onsubmit="app.saveWorkOrder(event)" class="p-4 space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">📅 Montaj Tarihi *</label>
+                        <input type="date" id="woDate" required class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">🏢 Firma Adı *</label>
+                        <input type="text" id="woCompany" required placeholder="ABC Lojistik" class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">📍 İl *</label>
+                            <input type="text" id="woCity" required placeholder="Muğla" class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">🗺️ İlçe *</label>
+                            <input type="text" id="woDistrict" required placeholder="Bodrum" class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">📦 Ürün *</label>
+                            <select id="woProduct" required class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                                <option value="">Seçiniz</option>
+                                <option value="T0">T0</option>
+                                <option value="Blokajlı T0">Blokajlı T0</option>
+                                <option value="Premium Canbus">Premium Canbus</option>
+                                <option value="T15">T15</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">🔢 Adet *</label>
+                            <input type="number" id="woQuantity" required min="1" value="1" class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">👤 İletişim Kişisi *</label>
+                        <input type="text" id="woContact" required placeholder="Ahmet Yılmaz" class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">📞 Telefon *</label>
+                        <input type="tel" id="woPhone" required placeholder="0532 XXX XX XX" class="w-full px-4 py-3 border-2 rounded-xl text-base">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">📝 Notlar</label>
+                        <textarea id="woNotes" rows="3" placeholder="Adres, özel talimat..." class="w-full px-4 py-3 border-2 rounded-xl text-base"></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <button type="button" onclick="app.closeModal('workOrderModal')" class="btn-touch bg-gray-200 rounded-xl font-semibold">
+                            İptal
+                        </button>
+                        <button type="submit" class="btn-touch bg-orange-600 text-white rounded-xl font-semibold">
+                            💾 Kaydet
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Work Order Detail Modal -->
+        <div id="detailModal" style="display: none;" class="modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end" onclick="if(event.target.id==='detailModal') app.closeModal('detailModal')">
+            <div class="modal-content bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <div class="sticky top-0 bg-white border-b px-4 py-4 z-10">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1">
+                            <h3 class="text-xl font-bold" id="detailCompany">Firma</h3>
+                            <p class="text-sm text-gray-600" id="detailDate">Tarih</p>
+                        </div>
+                        <button onclick="app.closeModal('detailModal')" class="btn-touch">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="app.updateStatus()" class="btn-touch bg-blue-600 text-white rounded-lg text-sm font-semibold active:scale-95">
+                            🔄 Durum
+                        </button>
+                        <button onclick="app.moveToDate()" class="btn-touch bg-purple-600 text-white rounded-lg text-sm font-semibold active:scale-95">
+                            📅 Taşı
+                        </button>
+                        <button onclick="app.deleteWorkOrder()" class="btn-touch bg-red-600 text-white rounded-lg text-sm font-semibold active:scale-95">
+                            🗑️ Sil
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-4" id="detailContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const app = {
+            currentUser: { name: 'Kemal', role: 'sales', color: '#ea580c', initials: 'K' },
+            users: [
+                { name: 'Kemal', role: 'sales', color: '#ea580c', initials: 'K' },
+                { name: 'Emrah', role: 'sales', color: '#2563eb', initials: 'E' },
+                { name: 'Sıla', role: 'sales', color: '#8b5cf6', initials: 'S' },
+                { name: 'Mehmet Kiraz', role: 'tech', color: '#10b981', initials: 'MK' },
+                { name: 'Denizli Ekibi', role: 'tech', color: '#f59e0b', initials: 'DE' }
+            ],
+            workOrders: [],
+            currentMonth: new Date().getMonth(),
+            currentYear: new Date().getFullYear(),
+            selectedOrder: null,
+            draggedOrder: null,
+            touchStartY: 0,
+            touchStartX: 0,
+
+            async init() {
+                while (!window.firebaseReady) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                this.updateUserDisplay();
+                this.renderUserMenu();
+                this.listenToFirebase();
+                this.renderCalendar();
+                this.setupTouchHandlers();
+                
+                document.getElementById('woDate').value = new Date().toISOString().split('T')[0];
+            },
+
+            setupTouchHandlers() {
+                let draggedElement = null;
+                let placeholder = null;
+                
+                document.addEventListener('touchmove', (e) => {
+                    if (draggedElement) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+            },
+
+            listenToFirebase() {
+                window.dbOnValue(window.dbRef(window.db, 'montaj'), (snapshot) => {
+                    const data = snapshot.val();
+                    this.workOrders = data ? Object.entries(data).map(([key, val]) => ({...val, firebaseKey: key})) : [];
+                    this.renderCalendar();
+                    this.updateStats();
+                });
+            },
+
+            renderCalendar() {
+                const container = document.getElementById('calendar');
+                container.innerHTML = '';
+
+                const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+                document.getElementById('currentMonth').textContent = `${monthNames[this.currentMonth]} ${this.currentYear}`;
+
+                const firstDay = new Date(this.currentYear, this.currentMonth, 1);
+                const lastDay = new Date(this.currentYear, this.currentMonth + 1, 0);
+                const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+                const today = new Date().toISOString().split('T')[0];
+
+                // Previous month days
+                for (let i = 0; i < startDay; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'day-slot bg-gray-100 rounded-lg';
+                    container.appendChild(div);
+                }
+
+                // Current month days
+                for (let day = 1; day <= lastDay.getDate(); day++) {
+                    const date = new Date(this.currentYear, this.currentMonth, day);
+                    const dateStr = date.toISOString().split('T')[0];
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                    const isToday = dateStr === today;
+
+                    const div = document.createElement('div');
+                    div.className = `day-slot p-1 rounded-lg ${isWeekend ? 'bg-gray-50' : 'bg-white'} border-2 ${isToday ? 'border-blue-500' : 'border-gray-200'}`;
+                    div.dataset.date = dateStr;
+
+                    // Day number
+                    const dayNum = document.createElement('div');
+                    dayNum.className = `day-number text-xs mb-1 ${isToday ? 'day-today' : 'text-gray-700'}`;
+                    dayNum.textContent = day;
+                    div.appendChild(dayNum);
+
+                    // Work orders
+                    const dayOrders = this.workOrders.filter(wo => wo.date === dateStr);
+                    
+                    if (dayOrders.length > 0) {
+                        const badge = document.createElement('div');
+                        badge.className = 'text-center text-xs font-bold bg-orange-500 text-white rounded-full py-1';
+                        badge.textContent = `${dayOrders.length} iş`;
+                        badge.onclick = () => this.showDayOrders(dateStr, dayOrders);
+                        div.appendChild(badge);
+                    }
+
+                    // Touch handlers for drag & drop
+                    div.addEventListener('touchstart', (e) => {
+                        if (dayOrders.length > 0 && e.target === div) {
+                            this.touchStartY = e.touches[0].clientY;
+                            this.touchStartX = e.touches[0].clientX;
+                        }
+                    });
+
+                    div.addEventListener('touchend', (e) => {
+                        div.classList.remove('drag-over');
+                    });
+
+                    container.appendChild(div);
+                }
+            },
+
+            showDayOrders(date, orders) {
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end';
+                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+                const d = new Date(date);
+                const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+                
+                modal.innerHTML = `
+                    <div class="modal-content bg-white rounded-t-3xl w-full max-h-[80vh] overflow-y-auto" onclick="event.stopPropagation()">
+                        <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center z-10">
+                            <h3 class="text-lg font-bold">${d.getDate()} ${monthNames[d.getMonth()]} - ${orders.length} İş</h3>
+                            <button onclick="this.closest('.modal-overlay').remove()" class="btn-touch">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="p-4 space-y-3">
+                            ${orders.map(wo => `
+                                <div class="work-card status-${wo.status || 'beklemede'} p-4 rounded-xl shadow-sm" onclick="app.showWorkOrderDetail(${JSON.stringify(wo).replace(/"/g, '&quot;')})">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="font-bold text-base">${wo.company}</div>
+                                        <div class="text-xs font-semibold bg-white/50 px-2 py-1 rounded">${wo.quantity}x</div>
+                                    </div>
+                                    <div class="text-sm text-gray-700 mb-1">${wo.city} / ${wo.district}</div>
+                                    <div class="text-xs font-semibold text-gray-600">${wo.product}</div>
+                                    <div class="text-xs text-gray-500 mt-2">${wo.contact} • ${wo.phone}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+            },
+
+            showWorkOrderDetail(wo) {
+                this.selectedOrder = wo;
+                
+                const d = new Date(wo.date);
+                const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+                
+                document.getElementById('detailCompany').textContent = wo.company;
+                document.getElementById('detailDate').textContent = `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+
+                const statusLabels = {
+                    beklemede: '⏳ Beklemede',
+                    tamamlandi: '✅ Tamamlandı',
+                    iptal: '❌ İptal'
+                };
+
+                document.getElementById('detailContent').innerHTML = `
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <div class="text-gray-500 mb-1">📍 Konum</div>
+                                    <div class="font-semibold">${wo.city} / ${wo.district}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500 mb-1">📦 Ürün</div>
+                                    <div class="font-semibold">${wo.quantity}x ${wo.product}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500 mb-1">👤 İletişim</div>
+                                    <div class="font-semibold">${wo.contact}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500 mb-1">📞 Telefon</div>
+                                    <div class="font-semibold"><a href="tel:${wo.phone}" class="text-blue-600">${wo.phone}</a></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="text-sm text-gray-500 mb-2">Durum</div>
+                            <div class="inline-block px-4 py-2 rounded-xl font-semibold ${wo.status === 'tamamlandi' ? 'bg-green-100 text-green-800' : wo.status === 'iptal' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">
+                                ${statusLabels[wo.status || 'beklemede']}
+                            </div>
+                        </div>
+                        
+                        ${wo.notes ? `
+                            <div>
+                                <div class="text-sm text-gray-500 mb-2">📝 Notlar</div>
+                                <div class="bg-blue-50 p-4 rounded-xl text-sm">${wo.notes}</div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="text-xs text-gray-500 pt-4 border-t">
+                            <div class="mb-1">Kaydeden: <span class="font-semibold">${wo.createdBy}</span></div>
+                            <div>Kayıt: ${new Date(wo.createdAt).toLocaleString('tr-TR')}</div>
+                        </div>
+                    </div>
+                `;
+
+                // Close any existing day modal
+                document.querySelectorAll('.modal-overlay').forEach(m => {
+                    if (m.id !== 'detailModal') m.remove();
+                });
+
+                this.openModal('detailModal');
+            },
+
+            updateStatus() {
+                const statuses = [
+                    { value: 'beklemede', label: '⏳ Beklemede', emoji: '1️⃣' },
+                    { value: 'tamamlandi', label: '✅ Tamamlandı', emoji: '2️⃣' },
+                    { value: 'iptal', label: '❌ İptal', emoji: '3️⃣' }
+                ];
+
+                const current = this.selectedOrder.status || 'beklemede';
+                const options = statuses.filter(s => s.value !== current);
+
+                const choice = prompt(`Yeni durum seçin:\n\n${options[0].emoji} ${options[0].label}\n${options[1].emoji} ${options[1].label}\n\nSeçiminiz (1-2):`);
+                
+                if (choice === '1' || choice === '2') {
+                    const newStatus = options[parseInt(choice) - 1].value;
+                    const ref = window.dbRef(window.db, `montaj/${this.selectedOrder.firebaseKey}`);
+                    window.dbUpdate(ref, { status: newStatus });
+                    this.closeModal('detailModal');
+                }
+            },
+
+            moveToDate() {
+                const newDate = prompt('Yeni tarih (GG.AA.YYYY):', new Date(this.selectedOrder.date).toLocaleDateString('tr-TR'));
+                
+                if (newDate) {
+                    const parts = newDate.split('.');
+                    if (parts.length === 3) {
+                        const isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                        const ref = window.dbRef(window.db, `montaj/${this.selectedOrder.firebaseKey}`);
+                        window.dbUpdate(ref, { date: isoDate });
+                        this.closeModal('detailModal');
+                    }
+                }
+            },
+
+            deleteWorkOrder() {
+                if (!confirm('Bu iş emrini silmek istediğinizden emin misiniz?')) return;
+                
+                const ref = window.dbRef(window.db, `montaj/${this.selectedOrder.firebaseKey}`);
+                window.dbRemove(ref);
+                this.closeModal('detailModal');
+            },
+
+            saveWorkOrder(e) {
+                e.preventDefault();
+
+                const wo = {
+                    date: document.getElementById('woDate').value,
+                    company: document.getElementById('woCompany').value,
+                    city: document.getElementById('woCity').value,
+                    district: document.getElementById('woDistrict').value,
+                    product: document.getElementById('woProduct').value,
+                    quantity: parseInt(document.getElementById('woQuantity').value),
+                    contact: document.getElementById('woContact').value,
+                    phone: document.getElementById('woPhone').value,
+                    notes: document.getElementById('woNotes').value,
+                    status: 'beklemede',
+                    createdBy: this.currentUser.name,
+                    createdAt: new Date().toISOString()
+                };
+
+                window.dbPush(window.dbRef(window.db, 'montaj'), wo);
+                this.closeModal('workOrderModal');
+                e.target.reset();
+                
+                // Vibration feedback
+                if (navigator.vibrate) navigator.vibrate(50);
+                
+                alert('✅ İş emri kaydedildi!');
+            },
+
+            updateStats() {
+                const thisMonth = this.workOrders.filter(wo => {
+                    const d = new Date(wo.date);
+                    return d.getMonth() === this.currentMonth && d.getFullYear() === this.currentYear;
+                });
+
+                document.getElementById('monthlyCount').textContent = thisMonth.length;
+                document.getElementById('pendingCount').textContent = this.workOrders.filter(wo => !wo.status || wo.status === 'beklemede').length;
+                document.getElementById('completedCount').textContent = this.workOrders.filter(wo => wo.status === 'tamamlandi').length;
+                document.getElementById('totalDevices').textContent = this.workOrders.reduce((sum, wo) => sum + (wo.quantity || 0), 0);
+            },
+
+            exportToExcel() {
+                let csv = '\ufeffTarih,Firma,İl,İlçe,Ürün,Adet,İletişim,Telefon,Durum,Kaydeden\n';
+                
+                const sorted = [...this.workOrders].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const statusLabels = { beklemede: 'Beklemede', tamamlandi: 'Tamamlandı', iptal: 'İptal' };
+                
+                sorted.forEach(wo => {
+                    csv += `${new Date(wo.date).toLocaleDateString('tr-TR')},"${wo.company}","${wo.city}","${wo.district}","${wo.product}",${wo.quantity},"${wo.contact}","${wo.phone}","${statusLabels[wo.status || 'beklemede']}","${wo.createdBy}"\n`;
+                });
+
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `montaj-${new Date().toISOString().split('T')[0]}.csv`;
+                link.click();
+                
+                if (navigator.vibrate) navigator.vibrate(50);
+            },
+
+            prevMonth() {
+                if (this.currentMonth === 0) {
+                    this.currentMonth = 11;
+                    this.currentYear--;
+                } else {
+                    this.currentMonth--;
+                }
+                this.renderCalendar();
+            },
+
+            nextMonth() {
+                if (this.currentMonth === 11) {
+                    this.currentMonth = 0;
+                    this.currentYear++;
+                } else {
+                    this.currentMonth++;
+                }
+                this.renderCalendar();
+            },
+
+            goToToday() {
+                this.currentMonth = new Date().getMonth();
+                this.currentYear = new Date().getFullYear();
+                this.renderCalendar();
+            },
+
+            toggleUserMenu() {
+                this.openModal('userMenuModal');
+            },
+
+            renderUserMenu() {
+                const container = document.getElementById('userMenuList');
+                container.innerHTML = this.users.map(user => `
+                    <button onclick="app.switchUser('${user.name}')" class="w-full flex items-center gap-4 p-4 rounded-xl ${this.currentUser.name === user.name ? 'bg-orange-50 border-2 border-orange-500' : 'bg-gray-50'} active:scale-95 transition-transform">
+                        <div style="width: 48px; height: 48px; border-radius: 50%; background: ${user.color}; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">
+                            ${user.initials}
+                        </div>
+                        <div class="text-left flex-1">
+                            <div class="font-bold text-base">${user.name}</div>
+                            <div class="text-sm text-gray-600">${user.role === 'sales' ? 'Satış Ekibi' : 'Montaj Ekibi'}</div>
+                        </div>
+                        ${this.currentUser.name === user.name ? '<div class="text-2xl">✓</div>' : ''}
+                    </button>
+                `).join('');
+            },
+
+            switchUser(name) {
+                this.currentUser = this.users.find(u => u.name === name);
+                this.updateUserDisplay();
+                this.closeModal('userMenuModal');
+                
+                if (navigator.vibrate) navigator.vibrate(50);
+            },
+
+            updateUserDisplay() {
+                document.getElementById('currentUserName').textContent = this.currentUser.name;
+                document.getElementById('currentUserRole').textContent = this.currentUser.role === 'sales' ? 'Satış' : 'Montaj';
+                document.getElementById('userAvatar').textContent = this.currentUser.initials;
+                document.getElementById('userAvatar').style.background = this.currentUser.color;
+            },
+
+            openModal(id) {
+                document.getElementById(id).style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            },
+
+            closeModal(id) {
+                document.getElementById(id).style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
