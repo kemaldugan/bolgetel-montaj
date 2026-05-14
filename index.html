@@ -41,17 +41,31 @@
         * {
             font-family: 'Inter', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
         
-        body {
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
             overscroll-behavior: none;
-            touch-action: pan-y;
+            position: fixed;
         }
         
-        /* Mobile optimized card */
+        #app {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Work card */
         .work-card {
             cursor: pointer;
-            touch-action: none;
+            touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
         }
@@ -61,28 +75,33 @@
             opacity: 0.9;
         }
         
-        .work-card.dragging {
-            opacity: 0.6;
-            transform: scale(1.05);
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);
-        }
-        
+        /* Day slot */
         .day-slot {
-            min-height: 120px;
-            touch-action: none;
+            min-height: 100px;
+            touch-action: pan-y;
         }
         
-        .day-slot.drag-over {
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
-            border: 3px dashed #3b82f6 !important;
-        }
-        
-        /* Modal animations */
+        /* Modal */
         .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: flex;
+            align-items: flex-end;
             animation: fadeIn 0.2s ease-out;
         }
         
         .modal-content {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             animation: slideUp 0.3s ease-out;
         }
         
@@ -92,22 +111,36 @@
         }
         
         @keyframes slideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
         }
         
         /* Status colors */
-        .status-beklemede { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; }
-        .status-tamamlandi { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border-left: 4px solid #10b981; }
-        .status-iptal { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-left: 4px solid #ef4444; }
+        .status-beklemede { 
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
+            border-left: 4px solid #f59e0b; 
+        }
+        .status-tamamlandi { 
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); 
+            border-left: 4px solid #10b981; 
+        }
+        .status-iptal { 
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); 
+            border-left: 4px solid #ef4444; 
+        }
         
-        /* Touch-friendly buttons */
+        /* Touch button */
         .btn-touch {
             min-height: 48px;
             min-width: 48px;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .btn-touch:active {
+            transform: scale(0.95);
         }
         
         /* Sticky header */
@@ -118,7 +151,7 @@
             backdrop-filter: blur(10px);
         }
         
-        /* Bottom action bar */
+        /* Bottom bar */
         .bottom-bar {
             position: fixed;
             bottom: 0;
@@ -128,34 +161,44 @@
             border-top: 1px solid #e5e7eb;
             padding: 12px 16px;
             box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.1);
-            z-index: 50;
+            z-index: 99;
         }
         
-        /* Safe area for notch */
         @supports (padding: max(0px)) {
             .bottom-bar {
                 padding-bottom: max(12px, env(safe-area-inset-bottom));
             }
         }
         
-        /* Compact calendar for mobile */
+        /* Calendar container */
+        .calendar-container {
+            padding-bottom: 80px;
+        }
+        
+        /* Day number */
         .day-number {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 600;
+            font-size: 13px;
         }
         
         .day-today {
             background: #3b82f6;
             color: white;
         }
+        
+        /* Input fields */
+        input, select, textarea {
+            font-size: 16px !important; /* Prevents zoom on iOS */
+        }
     </style>
 </head>
-<body class="bg-gray-50 pb-20">
+<body class="bg-gray-50">
     <div id="app">
         <!-- Mobile Header -->
         <div class="sticky-header bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg">
@@ -170,46 +213,47 @@
                             <div class="text-xs text-orange-100" id="currentUserRole">Satış</div>
                         </div>
                     </div>
-                    <button onclick="app.toggleUserMenu()" class="btn-touch rounded-lg hover:bg-white/10">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button onclick="app.toggleUserMenu()" class="btn-touch rounded-lg hover:bg-white/10 flex flex-col items-center">
+                        <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
+                        <span class="text-[10px]">Kullanıcı Seçiniz</span>
                     </button>
                 </div>
                 
                 <!-- Stats - Compact -->
                 <div class="grid grid-cols-4 gap-2 text-center">
                     <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
-                        <div class="text-2xl font-bold" id="monthlyCount">0</div>
-                        <div class="text-xs">Bu Ay</div>
+                        <div class="text-xl font-bold" id="monthlyCount">0</div>
+                        <div class="text-[10px]">Bu Ay</div>
                     </div>
                     <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
-                        <div class="text-2xl font-bold" id="pendingCount">0</div>
-                        <div class="text-xs">Bekleyen</div>
+                        <div class="text-xl font-bold" id="pendingCount">0</div>
+                        <div class="text-[10px]">Bekleyen</div>
                     </div>
                     <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
-                        <div class="text-2xl font-bold" id="completedCount">0</div>
-                        <div class="text-xs">Biten</div>
+                        <div class="text-xl font-bold" id="completedCount">0</div>
+                        <div class="text-[10px]">Biten</div>
                     </div>
                     <div class="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
-                        <div class="text-2xl font-bold" id="totalDevices">0</div>
-                        <div class="text-xs">Cihaz</div>
+                        <div class="text-xl font-bold" id="totalDevices">0</div>
+                        <div class="text-[10px]">Cihaz</div>
                     </div>
                 </div>
             </div>
             
             <!-- Month Navigation -->
             <div class="flex items-center justify-between px-4 py-3 bg-black/10">
-                <button onclick="app.prevMonth()" class="btn-touch rounded-lg hover:bg-white/10">
+                <button onclick="app.prevMonth()" class="btn-touch rounded-lg hover:bg-white/10 p-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
                 <div class="text-center">
-                    <div class="text-lg font-bold" id="currentMonth">Mayıs 2026</div>
+                    <div class="text-base font-bold" id="currentMonth">Mayıs 2026</div>
                     <button onclick="app.goToToday()" class="text-xs bg-white/20 px-3 py-1 rounded-full mt-1">Bugün</button>
                 </div>
-                <button onclick="app.nextMonth()" class="btn-touch rounded-lg hover:bg-white/10">
+                <button onclick="app.nextMonth()" class="btn-touch rounded-lg hover:bg-white/10 p-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
@@ -217,17 +261,17 @@
             </div>
         </div>
 
-        <!-- Calendar Grid - Mobile Optimized -->
-        <div class="px-2 py-2">
+        <!-- Calendar Grid -->
+        <div class="calendar-container px-2 py-3">
             <!-- Day headers -->
             <div class="grid grid-cols-7 gap-1 mb-2">
-                <div class="text-center text-xs font-semibold text-gray-600 py-2">Pzt</div>
-                <div class="text-center text-xs font-semibold text-gray-600 py-2">Sal</div>
-                <div class="text-center text-xs font-semibold text-gray-600 py-2">Çar</div>
-                <div class="text-center text-xs font-semibold text-gray-600 py-2">Per</div>
-                <div class="text-center text-xs font-semibold text-gray-600 py-2">Cum</div>
-                <div class="text-center text-xs font-semibold text-blue-600 py-2">Cmt</div>
-                <div class="text-center text-xs font-semibold text-red-600 py-2">Paz</div>
+                <div class="text-center text-[11px] font-semibold text-gray-600 py-1">Pzt</div>
+                <div class="text-center text-[11px] font-semibold text-gray-600 py-1">Sal</div>
+                <div class="text-center text-[11px] font-semibold text-gray-600 py-1">Çar</div>
+                <div class="text-center text-[11px] font-semibold text-gray-600 py-1">Per</div>
+                <div class="text-center text-[11px] font-semibold text-gray-600 py-1">Cum</div>
+                <div class="text-center text-[11px] font-semibold text-blue-600 py-1">Cmt</div>
+                <div class="text-center text-[11px] font-semibold text-red-600 py-1">Paz</div>
             </div>
             
             <!-- Calendar days -->
@@ -237,138 +281,144 @@
         <!-- Bottom Action Bar -->
         <div class="bottom-bar">
             <div class="grid grid-cols-2 gap-2">
-                <button onclick="app.exportToExcel()" class="btn-touch bg-green-600 text-white rounded-xl font-semibold shadow-lg active:scale-95 transition-transform">
-                    📥 Excel
+                <button onclick="app.exportToExcel()" class="btn-touch bg-green-600 text-white rounded-xl font-semibold shadow-lg active:scale-95 transition-transform text-sm">
+                    📥 Excel İndir
                 </button>
-                <button onclick="app.openWorkOrderModal()" class="btn-touch bg-orange-600 text-white rounded-xl font-semibold shadow-lg active:scale-95 transition-transform">
-                    ➕ Yeni İş
+                <button onclick="app.openWorkOrderModal()" class="btn-touch bg-orange-600 text-white rounded-xl font-semibold shadow-lg active:scale-95 transition-transform text-sm">
+                    ➕ Yeni İş Emri
                 </button>
             </div>
         </div>
 
         <!-- User Menu Modal -->
-        <div id="userMenuModal" style="display: none;" class="modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end" onclick="if(event.target.id==='userMenuModal') app.closeModal('userMenuModal')">
-            <div class="modal-content bg-white rounded-t-3xl w-full max-h-[80vh] overflow-y-auto" onclick="event.stopPropagation()">
-                <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center">
-                    <h3 class="text-lg font-bold">Kullanıcı Seç</h3>
-                    <button onclick="app.closeModal('userMenuModal')" class="btn-touch">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+        <div id="userMenuModal" style="display: none;">
+            <div class="modal-overlay" onclick="if(event.target.classList.contains('modal-overlay')) app.closeModal('userMenuModal')">
+                <div class="modal-content" onclick="event.stopPropagation()">
+                    <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center z-10">
+                        <h3 class="text-lg font-bold">👤 Kullanıcı Seç</h3>
+                        <button onclick="app.closeModal('userMenuModal')" class="btn-touch">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="p-4 space-y-2" id="userMenuList"></div>
                 </div>
-                <div class="p-4 space-y-2" id="userMenuList"></div>
             </div>
         </div>
 
         <!-- Work Order Form Modal -->
-        <div id="workOrderModal" style="display: none;" class="modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end" onclick="if(event.target.id==='workOrderModal') app.closeModal('workOrderModal')">
-            <div class="modal-content bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-                <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center z-10">
-                    <h3 class="text-lg font-bold">🔧 Yeni Montaj</h3>
-                    <button onclick="app.closeModal('workOrderModal')" class="btn-touch">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                
-                <form onsubmit="app.saveWorkOrder(event)" class="p-4 space-y-4">
-                    <div>
-                        <label class="block text-sm font-semibold mb-2">📅 Montaj Tarihi *</label>
-                        <input type="date" id="woDate" required class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-semibold mb-2">🏢 Firma Adı *</label>
-                        <input type="text" id="woCompany" required placeholder="ABC Lojistik" class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm font-semibold mb-2">📍 İl *</label>
-                            <input type="text" id="woCity" required placeholder="Muğla" class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-2">🗺️ İlçe *</label>
-                            <input type="text" id="woDistrict" required placeholder="Bodrum" class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm font-semibold mb-2">📦 Ürün *</label>
-                            <select id="woProduct" required class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                                <option value="">Seçiniz</option>
-                                <option value="T0">T0</option>
-                                <option value="Blokajlı T0">Blokajlı T0</option>
-                                <option value="Premium Canbus">Premium Canbus</option>
-                                <option value="T15">T15</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-2">🔢 Adet *</label>
-                            <input type="number" id="woQuantity" required min="1" value="1" class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-semibold mb-2">👤 İletişim Kişisi *</label>
-                        <input type="text" id="woContact" required placeholder="Ahmet Yılmaz" class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-semibold mb-2">📞 Telefon *</label>
-                        <input type="tel" id="woPhone" required placeholder="0532 XXX XX XX" class="w-full px-4 py-3 border-2 rounded-xl text-base">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-semibold mb-2">📝 Notlar</label>
-                        <textarea id="woNotes" rows="3" placeholder="Adres, özel talimat..." class="w-full px-4 py-3 border-2 rounded-xl text-base"></textarea>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-3 pt-2">
-                        <button type="button" onclick="app.closeModal('workOrderModal')" class="btn-touch bg-gray-200 rounded-xl font-semibold">
-                            İptal
-                        </button>
-                        <button type="submit" class="btn-touch bg-orange-600 text-white rounded-xl font-semibold">
-                            💾 Kaydet
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Work Order Detail Modal -->
-        <div id="detailModal" style="display: none;" class="modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end" onclick="if(event.target.id==='detailModal') app.closeModal('detailModal')">
-            <div class="modal-content bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-                <div class="sticky top-0 bg-white border-b px-4 py-4 z-10">
-                    <div class="flex justify-between items-start mb-3">
-                        <div class="flex-1">
-                            <h3 class="text-xl font-bold" id="detailCompany">Firma</h3>
-                            <p class="text-sm text-gray-600" id="detailDate">Tarih</p>
-                        </div>
-                        <button onclick="app.closeModal('detailModal')" class="btn-touch">
+        <div id="workOrderModal" style="display: none;">
+            <div class="modal-overlay" onclick="if(event.target.classList.contains('modal-overlay')) app.closeModal('workOrderModal')">
+                <div class="modal-content" onclick="event.stopPropagation()">
+                    <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center z-10">
+                        <h3 class="text-lg font-bold">🔧 Yeni Montaj İş Emri</h3>
+                        <button onclick="app.closeModal('workOrderModal')" class="btn-touch">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
                     
-                    <div class="grid grid-cols-3 gap-2">
-                        <button onclick="app.updateStatus()" class="btn-touch bg-blue-600 text-white rounded-lg text-sm font-semibold active:scale-95">
-                            🔄 Durum
-                        </button>
-                        <button onclick="app.moveToDate()" class="btn-touch bg-purple-600 text-white rounded-lg text-sm font-semibold active:scale-95">
-                            📅 Taşı
-                        </button>
-                        <button onclick="app.deleteWorkOrder()" class="btn-touch bg-red-600 text-white rounded-lg text-sm font-semibold active:scale-95">
-                            🗑️ Sil
-                        </button>
-                    </div>
+                    <form onsubmit="app.saveWorkOrder(event)" class="p-4 space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">📅 Montaj Tarihi *</label>
+                            <input type="date" id="woDate" required class="w-full px-4 py-3 border-2 rounded-xl">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">🏢 Firma Adı *</label>
+                            <input type="text" id="woCompany" required placeholder="ABC Lojistik" class="w-full px-4 py-3 border-2 rounded-xl">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">📍 İl *</label>
+                                <input type="text" id="woCity" required placeholder="Muğla" class="w-full px-4 py-3 border-2 rounded-xl">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">🗺️ İlçe *</label>
+                                <input type="text" id="woDistrict" required placeholder="Bodrum" class="w-full px-4 py-3 border-2 rounded-xl">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">📦 Ürün *</label>
+                                <select id="woProduct" required class="w-full px-4 py-3 border-2 rounded-xl">
+                                    <option value="">Seçiniz</option>
+                                    <option value="T0">T0</option>
+                                    <option value="Blokajlı T0">Blokajlı T0</option>
+                                    <option value="Premium Canbus">Premium Canbus</option>
+                                    <option value="T15">T15</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">🔢 Adet *</label>
+                                <input type="number" id="woQuantity" required min="1" value="1" class="w-full px-4 py-3 border-2 rounded-xl">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">👤 İletişim Kişisi *</label>
+                            <input type="text" id="woContact" required placeholder="Ahmet Yılmaz" class="w-full px-4 py-3 border-2 rounded-xl">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">📞 Telefon *</label>
+                            <input type="tel" id="woPhone" required placeholder="0532 XXX XX XX" class="w-full px-4 py-3 border-2 rounded-xl">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">📝 Notlar</label>
+                            <textarea id="woNotes" rows="3" placeholder="Adres, özel talimat..." class="w-full px-4 py-3 border-2 rounded-xl"></textarea>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3 pt-2">
+                            <button type="button" onclick="app.closeModal('workOrderModal')" class="btn-touch bg-gray-200 rounded-xl font-semibold">
+                                İptal
+                            </button>
+                            <button type="submit" class="btn-touch bg-orange-600 text-white rounded-xl font-semibold">
+                                💾 Kaydet
+                            </button>
+                        </div>
+                    </form>
                 </div>
-                
-                <div class="p-4" id="detailContent"></div>
+            </div>
+        </div>
+
+        <!-- Work Order Detail Modal -->
+        <div id="detailModal" style="display: none;">
+            <div class="modal-overlay" onclick="if(event.target.classList.contains('modal-overlay')) app.closeModal('detailModal')">
+                <div class="modal-content" onclick="event.stopPropagation()">
+                    <div class="sticky top-0 bg-white border-b px-4 py-4 z-10">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex-1">
+                                <h3 class="text-xl font-bold" id="detailCompany">Firma</h3>
+                                <p class="text-sm text-gray-600" id="detailDate">Tarih</p>
+                            </div>
+                            <button onclick="app.closeModal('detailModal')" class="btn-touch">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="app.updateStatus()" class="btn-touch bg-blue-600 text-white rounded-lg text-xs font-semibold active:scale-95">
+                                🔄 Durum
+                            </button>
+                            <button onclick="app.moveToDate()" class="btn-touch bg-purple-600 text-white rounded-lg text-xs font-semibold active:scale-95">
+                                📅 Taşı
+                            </button>
+                            <button onclick="app.deleteWorkOrder()" class="btn-touch bg-red-600 text-white rounded-lg text-xs font-semibold active:scale-95">
+                                🗑️ Sil
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4" id="detailContent"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -387,9 +437,6 @@
             currentMonth: new Date().getMonth(),
             currentYear: new Date().getFullYear(),
             selectedOrder: null,
-            draggedOrder: null,
-            touchStartY: 0,
-            touchStartX: 0,
 
             async init() {
                 while (!window.firebaseReady) {
@@ -400,20 +447,8 @@
                 this.renderUserMenu();
                 this.listenToFirebase();
                 this.renderCalendar();
-                this.setupTouchHandlers();
                 
                 document.getElementById('woDate').value = new Date().toISOString().split('T')[0];
-            },
-
-            setupTouchHandlers() {
-                let draggedElement = null;
-                let placeholder = null;
-                
-                document.addEventListener('touchmove', (e) => {
-                    if (draggedElement) {
-                        e.preventDefault();
-                    }
-                }, { passive: false });
             },
 
             listenToFirebase() {
@@ -457,7 +492,7 @@
 
                     // Day number
                     const dayNum = document.createElement('div');
-                    dayNum.className = `day-number text-xs mb-1 ${isToday ? 'day-today' : 'text-gray-700'}`;
+                    dayNum.className = `day-number mx-auto ${isToday ? 'day-today' : 'text-gray-700'}`;
                     dayNum.textContent = day;
                     div.appendChild(dayNum);
 
@@ -466,23 +501,11 @@
                     
                     if (dayOrders.length > 0) {
                         const badge = document.createElement('div');
-                        badge.className = 'text-center text-xs font-bold bg-orange-500 text-white rounded-full py-1';
+                        badge.className = 'text-center text-[10px] font-bold bg-orange-500 text-white rounded-full py-1 mt-1';
                         badge.textContent = `${dayOrders.length} iş`;
                         badge.onclick = () => this.showDayOrders(dateStr, dayOrders);
                         div.appendChild(badge);
                     }
-
-                    // Touch handlers for drag & drop
-                    div.addEventListener('touchstart', (e) => {
-                        if (dayOrders.length > 0 && e.target === div) {
-                            this.touchStartY = e.touches[0].clientY;
-                            this.touchStartX = e.touches[0].clientX;
-                        }
-                    });
-
-                    div.addEventListener('touchend', (e) => {
-                        div.classList.remove('drag-over');
-                    });
 
                     container.appendChild(div);
                 }
@@ -490,34 +513,38 @@
 
             showDayOrders(date, orders) {
                 const modal = document.createElement('div');
-                modal.className = 'modal-overlay fixed inset-0 bg-black/50 z-[200] flex items-end';
-                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-
+                modal.id = 'dayOrdersModal';
+                
                 const d = new Date(date);
                 const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
                 
                 modal.innerHTML = `
-                    <div class="modal-content bg-white rounded-t-3xl w-full max-h-[80vh] overflow-y-auto" onclick="event.stopPropagation()">
-                        <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center z-10">
-                            <h3 class="text-lg font-bold">${d.getDate()} ${monthNames[d.getMonth()]} - ${orders.length} İş</h3>
-                            <button onclick="this.closest('.modal-overlay').remove()" class="btn-touch">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="p-4 space-y-3">
-                            ${orders.map(wo => `
-                                <div class="work-card status-${wo.status || 'beklemede'} p-4 rounded-xl shadow-sm" onclick="app.showWorkOrderDetail(${JSON.stringify(wo).replace(/"/g, '&quot;')})">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="font-bold text-base">${wo.company}</div>
-                                        <div class="text-xs font-semibold bg-white/50 px-2 py-1 rounded">${wo.quantity}x</div>
-                                    </div>
-                                    <div class="text-sm text-gray-700 mb-1">${wo.city} / ${wo.district}</div>
-                                    <div class="text-xs font-semibold text-gray-600">${wo.product}</div>
-                                    <div class="text-xs text-gray-500 mt-2">${wo.contact} • ${wo.phone}</div>
-                                </div>
-                            `).join('')}
+                    <div class="modal-overlay" onclick="if(event.target.classList.contains('modal-overlay')) this.parentElement.remove()">
+                        <div class="modal-content" onclick="event.stopPropagation()">
+                            <div class="sticky top-0 bg-white border-b px-4 py-4 flex justify-between items-center z-10">
+                                <h3 class="text-lg font-bold">${d.getDate()} ${monthNames[d.getMonth()]} - ${orders.length} İş</h3>
+                                <button onclick="this.closest('#dayOrdersModal').remove()" class="btn-touch">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="p-4 space-y-3">
+                                ${orders.map(wo => {
+                                    const woStr = JSON.stringify(wo).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+                                    return `
+                                        <div class="work-card status-${wo.status || 'beklemede'} p-4 rounded-xl shadow-sm" onclick='app.showWorkOrderDetail(JSON.parse("${woStr}"))'>
+                                            <div class="flex justify-between items-start mb-2">
+                                                <div class="font-bold text-base">${wo.company}</div>
+                                                <div class="text-xs font-semibold bg-white/50 px-2 py-1 rounded">${wo.quantity}x</div>
+                                            </div>
+                                            <div class="text-sm text-gray-700 mb-1">${wo.city} / ${wo.district}</div>
+                                            <div class="text-xs font-semibold text-gray-600">${wo.product}</div>
+                                            <div class="text-xs text-gray-500 mt-2">${wo.contact} • ${wo.phone}</div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -526,6 +553,10 @@
             },
 
             showWorkOrderDetail(wo) {
+                // Close day orders modal if open
+                const dayModal = document.getElementById('dayOrdersModal');
+                if (dayModal) dayModal.remove();
+
                 this.selectedOrder = wo;
                 
                 const d = new Date(wo.date);
@@ -583,11 +614,6 @@
                         </div>
                     </div>
                 `;
-
-                // Close any existing day modal
-                document.querySelectorAll('.modal-overlay').forEach(m => {
-                    if (m.id !== 'detailModal') m.remove();
-                });
 
                 this.openModal('detailModal');
             },
@@ -655,10 +681,9 @@
                 window.dbPush(window.dbRef(window.db, 'montaj'), wo);
                 this.closeModal('workOrderModal');
                 e.target.reset();
+                document.getElementById('woDate').value = new Date().toISOString().split('T')[0];
                 
-                // Vibration feedback
                 if (navigator.vibrate) navigator.vibrate(50);
-                
                 alert('✅ İş emri kaydedildi!');
             },
 
@@ -759,13 +784,11 @@
             },
 
             openModal(id) {
-                document.getElementById(id).style.display = 'flex';
-                document.body.style.overflow = 'hidden';
+                document.getElementById(id).style.display = 'block';
             },
 
             closeModal(id) {
                 document.getElementById(id).style.display = 'none';
-                document.body.style.overflow = 'auto';
             }
         };
 
